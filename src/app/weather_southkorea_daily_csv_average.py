@@ -30,12 +30,12 @@ def main():
     
     # Validate date format
     try:
-        target_date = datetime.strptime(args.date, '%Y-%m-%d')
+        target_date = datetime.strptime(args.date, '%Y%m%d')
         year = target_date.year
         month = target_date.month
         day = target_date.day
     except ValueError:
-        print("Error: Date format should be YYYY-MM-DD")
+        print("Error: Date format should be YYYYMMDD")
         return
 
     # Check if data exists in MinIO
@@ -50,10 +50,15 @@ def main():
             print("Unexpected error : {0}".format(e))
             return 1
     
-    # Create Spark Session and process data
+    # Create spark session
     spark = init_spark_session()
     spark.sparkContext.setLogLevel("WARN")
     
+    # Read data from parquet
+    df = spark.read.parquet(f"s3a://{MINIO_BUCKET}/{object_average_parquet_name}")
+    df.createOrReplaceTempView("weather_southkorea_daily_average_parquet")
+
+    # Calculate average
     query = f"""
     SELECT 
         AVG(temp) as avg_temp,
@@ -69,7 +74,7 @@ def main():
         AVG(pressure_vaper) as avg_pressure_vaper,
         AVG(dew_point) as avg_dew_point,
         COUNT(*) as total_records
-    FROM hive.weather.southkorea_daily_parquet
+    FROM weather_southkorea_daily_average_parquet
     WHERE year = {year} AND month = {month} AND day = {day}
     """
     
@@ -82,7 +87,6 @@ def main():
         .withColumn("day", lit(day))
     
     # Display results
-    print(f"=== Weather Daily Average Results for {args.date} ===")
     result_df_partitions.show(truncate=False)
     
     # Save results to MinIO
