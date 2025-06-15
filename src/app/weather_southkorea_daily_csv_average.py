@@ -60,7 +60,8 @@ def main():
 
     # Calculate average
     query = f"""
-    SELECT 
+    SELECT
+        branch_name,
         AVG(temp) as avg_temp,
         AVG(rain) as avg_rain,
         AVG(snow) as avg_snow,
@@ -76,6 +77,7 @@ def main():
         COUNT(*) as total_records
     FROM weather_southkorea_daily_average_parquet
     WHERE year = {year} AND month = {month} AND day = {day}
+    GROUP BY year, month, day, branch_name
     """
     
     result_df = spark.sql(query)
