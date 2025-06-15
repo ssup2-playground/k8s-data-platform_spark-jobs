@@ -1,7 +1,6 @@
 import argparse
 from datetime import datetime
 
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit
 
 from utils.minio import init_minio_client
@@ -9,17 +8,17 @@ from utils.spark import init_spark_session
 
 ## Constants
 MINIO_BUCKET = "weather"
-MINIO_DIRECTORY_SOUTHKOREA_DAILY_CSV = "southkorea/daily_average_csv"
+MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET = "southkorea/daily_parquet"
 
 ## Functions
-def get_daily_average_csv_object_name(date: str) -> str:
-    '''Get daily average csv object name'''
+def get_daily_average_parquet_object_name(date: str) -> str:
+    '''Get daily average parquet object name'''
     return (
-        f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_CSV}/"
+        f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET}/"
         f"year={int(date[0:4])}/"
         f"month={int(date[4:6])}/"
         f"day={int(date[6:8])}/"
-        f"data.csv"
+        f"data.parquet"
     )
 
 ## Main
@@ -41,9 +40,9 @@ def main():
 
     # Check if data exists in MinIO
     minio_client = init_minio_client()
-    object_average_csv_name = get_daily_average_csv_object_name(args.date)
+    object_average_parquet_name = get_daily_average_parquet_object_name(args.date)
     try:
-        minio_client.stat_object(MINIO_BUCKET, object_average_csv_name)
+        minio_client.stat_object(MINIO_BUCKET, object_average_parquet_name)
         print("data already exists in minio")
         return 0
     except Exception as e:
@@ -77,20 +76,20 @@ def main():
     result_df = spark.sql(query)
     
     # Add partition columns to the result
-    result_df_with_partitions = result_df \
+    result_df_partitions = result_df \
         .withColumn("year", lit(year)) \
         .withColumn("month", lit(month)) \
         .withColumn("day", lit(day))
     
     # Display results
     print(f"=== Weather Daily Average Results for {args.date} ===")
-    result_df_with_partitions.show(truncate=False)
+    result_df_partitions.show(truncate=False)
     
     # Save results to MinIO
-    result_df_with_partitions.write \
-        .format("csv") \
+    result_df_partitions.write \
+        .format("parquet") \
         .mode("overwrite") \
-        .save(f"s3a://{MINIO_BUCKET}/{object_average_csv_name}")
+        .save(f"s3a://{MINIO_BUCKET}/{object_average_parquet_name}")
 
 if __name__ == "__main__":
     main()
