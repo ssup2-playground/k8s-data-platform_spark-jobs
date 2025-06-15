@@ -1,0 +1,94 @@
+apiVersion: "sparkoperator.k8s.io/v1beta2"
+kind: SparkApplication
+metadata:
+  name: customer-etl-job
+  namespace: spark
+  labels:
+    app: customer-etl
+    version: v1.0.0
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: "your-registry/pyspark-app:latest"
+  imagePullPolicy: Always
+  mainApplicationFile: local:///opt/spark/work-dir/src/main.py
+  arguments:
+    - "--job"
+    - "etl"
+    - "--config"
+    - "/opt/spark/work-dir/config/prod_config.yaml"
+    - "--app-name"
+    - "CustomerETL"
+  sparkVersion: "3.4.0"
+  
+  driver:
+    cores: 2
+    coreLimit: "2000m"
+    memory: "2g"
+    labels:
+      version: 3.4.0
+      component: driver
+    serviceAccount: spark-driver
+    volumeMounts:
+      - name: config-volume
+        mountPath: /opt/spark/work-dir/config
+      - name: data-volume
+        mountPath: /opt/spark/work-dir/data
+    env:
+      - name: ENVIRONMENT
+        value: "production"
+      - name: LOG_LEVEL
+        value: "INFO"
+  
+  executor:
+    cores: 2
+    coreLimit: "2000m"
+    memory: "4g"
+    instances: 5
+    labels:
+      version: 3.4.0
+      component: executor
+    volumeMounts:
+      - name: config-volume
+        mountPath: /opt/spark/work-dir/config
+      - name: data-volume
+        mountPath: /opt/spark/work-dir/data
+  
+  volumes:
+    - name: config-volume
+      configMap:
+        name: spark-app-config
+    - name: data-volume
+      persistentVolumeClaim:
+        claimName: spark-data-pvc
+  
+  sparkConf:
+    "spark.sql.adaptive.enabled": "true"
+    "spark.sql.adaptive.coalescePartitions.enabled": "true"
+    "spark.sql.adaptive.skewJoin.enabled": "true"
+    "spark.kubernetes.executor.deleteOnTermination": "true"
+    "spark.kubernetes.executor.podNamePrefix": "customer-etl"
+    "spark.eventLog.enabled": "true"
+    "spark.eventLog.dir": "s3a://spark-logs/event-logs"
+    "spark.history.fs.logDirectory": "s3a://spark-logs/event-logs"
+  
+  hadoopConf:
+    "fs.s3a.access.key": "YOUR_ACCESS_KEY"
+    "fs.s3a.secret.key": "YOUR_SECRET_KEY"
+    "fs.s3a.endpoint": "s3.amazonaws.com"
+    "fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+  
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 3
+    onFailureRetryInterval: 10
+    onSubmissionFailureRetries: 5
+    onSubmissionFailureRetryInterval: 20
+  
+  monitoring:
+    exposeDriverMetrics: true
+    exposeExecutorMetrics: true
+    prometheus:
+      jmxExporterJar: "/opt/spark/jars/jmx_prometheus_javaagent-0.16.1.jar"
+      port: 8090
