@@ -22,14 +22,13 @@ def get_daily_parquet_object_name(date: str) -> str:
         f"data.parquet"
     )
 
-def get_daily_average_parquet_object_name(date: str) -> str:
-    '''Get daily average parquet object name'''
+def get_daily_average_parquet_object_path(date: str) -> str:
+    '''Get daily average parquet object path'''
     return (
         f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_AVERAGE_PARQUET}/"
         f"year={int(date[0:4])}/"
         f"month={int(date[4:6])}/"
-        f"day={int(date[6:8])}/"
-        f"data.parquet"
+        f"day={int(date[6:8])}"
     )
 
 ## Main
@@ -49,11 +48,11 @@ def main():
         print("Error: Date format should be YYYYMMDD")
         return
 
-    # Check if data exists in MinIO
+    # Check if average data exists in MinIO
     minio_client = init_minio_client()
-    object_daily_average_parquet_name = get_daily_average_parquet_object_name(args.date)
+    object_daily_average_parquet_path = get_daily_average_parquet_object_path(args.date)
     try:
-        minio_client.stat_object(MINIO_BUCKET, object_daily_average_parquet_name)
+        minio_client.stat_object(MINIO_BUCKET, f"{object_daily_average_parquet_path}/_SUCCESS")
         print("data already exists in minio")
         return 0
     except Exception as e:
@@ -97,10 +96,10 @@ def main():
     result_df.show(truncate=False)
     
     # Save results to MinIO
-    result_df.coalesce(1).write \
+    result_df.write \
         .format("parquet") \
         .option("compression", "none") \
-        .option("path", f"s3a://{MINIO_BUCKET}/{object_daily_average_parquet_name}") \
+        .option("path", f"s3a://{MINIO_BUCKET}/{object_daily_average_parquet_path}") \
         .mode("overwrite") \
         .save()
 
