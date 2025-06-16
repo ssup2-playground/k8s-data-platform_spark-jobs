@@ -8,13 +8,24 @@ from utils.spark import init_spark_session
 
 ## Constants
 MINIO_BUCKET = "weather"
-MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET = "southkorea/daily_parquet"
+MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET = "southkorea/daily-parquet"
+MINIO_DIRECTORY_SOUTHKOREA_DAILY_AVERAGE_PARQUET = "southkorea/daily-average-parquet"
 
 ## Functions
+def get_daily_parquet_object_name(date: str) -> str:
+    '''Get daily parquet object name'''
+    return (
+        f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET}/"
+        f"year={int(date[0:4])}/"
+        f"month={int(date[4:6])}/"
+        f"day={int(date[6:8])}/"
+        f"data.parquet"
+    )
+
 def get_daily_average_parquet_object_name(date: str) -> str:
     '''Get daily average parquet object name'''
     return (
-        f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET}/"
+        f"{MINIO_DIRECTORY_SOUTHKOREA_DAILY_AVERAGE_PARQUET}/"
         f"year={int(date[0:4])}/"
         f"month={int(date[4:6])}/"
         f"day={int(date[6:8])}/"
@@ -40,9 +51,9 @@ def main():
 
     # Check if data exists in MinIO
     minio_client = init_minio_client()
-    object_average_parquet_name = get_daily_average_parquet_object_name(args.date)
+    object_daily_average_parquet_name = get_daily_average_parquet_object_name(args.date)
     try:
-        minio_client.stat_object(MINIO_BUCKET, object_average_parquet_name)
+        minio_client.stat_object(MINIO_BUCKET, object_daily_average_parquet_name)
         print("data already exists in minio")
         return 0
     except Exception as e:
@@ -52,11 +63,12 @@ def main():
     
     # Create spark session
     spark = init_spark_session()
-    spark.sparkContext.setLogLevel("WARN")
+    spark.sparkContext.setLogLevel("INFO")
     
     # Read data from parquet
-    df = spark.read.parquet(f"s3a://{MINIO_BUCKET}/{object_average_parquet_name}")
-    df.createOrReplaceTempView("weather_southkorea_daily_average_parquet")
+    object_daily_parquet_name = get_daily_parquet_object_name(args.date)
+    df = spark.read.parquet(f"s3a://{MINIO_BUCKET}/{object_daily_parquet_name}")
+    df.createOrReplaceTempView("weather_southkorea_daily_parquet")
 
     # Calculate average
     query = f"""
@@ -75,27 +87,22 @@ def main():
         AVG(pressure_vaper) as avg_pressure_vaper,
         AVG(dew_point) as avg_dew_point,
         COUNT(*) as total_records
-    FROM weather_southkorea_daily_average_parquet
-    WHERE year = {year} AND month = {month} AND day = {day}
-    GROUP BY year, month, day, branch_name
+    FROM weather_southkorea_daily_parquet
+    GROUP BY branch_name
     """
     
     result_df = spark.sql(query)
     
-    # Add partition columns to the result
-    result_df_partitions = result_df \
-        .withColumn("year", lit(year)) \
-        .withColumn("month", lit(month)) \
-        .withColumn("day", lit(day))
-    
     # Display results
-    result_df_partitions.show(truncate=False)
+    result_df.show(truncate=False)
     
     # Save results to MinIO
-    result_df_partitions.write \
+    result_df.coalesce(1).write \
         .format("parquet") \
+        .option("compression", "none") \
+        .option("path", f"s3a://{MINIO_BUCKET}/{object_daily_average_parquet_name}") \
         .mode("overwrite") \
-        .save(f"s3a://{MINIO_BUCKET}/{object_average_parquet_name}")
+        .save()
 
 if __name__ == "__main__":
     main()
