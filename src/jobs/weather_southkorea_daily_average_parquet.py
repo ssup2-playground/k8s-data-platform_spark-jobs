@@ -1,8 +1,6 @@
 import argparse
 from datetime import datetime
 
-from pyspark.sql.functions import lit
-
 from utils.minio import init_minio_client
 from utils.spark import init_spark_session
 
