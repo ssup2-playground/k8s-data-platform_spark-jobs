@@ -1,4 +1,4 @@
-FROM apache/spark:4.0.0-python3
+FROM apache/spark:3.5.3-python3
 COPY --from=ghcr.io/astral-sh/uv:0.7.6 /uv /uvx /bin/
 
 WORKDIR /app
