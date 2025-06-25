@@ -1,3 +1,4 @@
+# Only bitnami spark 3.5.5 uses python 3.12 version higher than 3.9
 # builder stage
 FROM bitnami/spark:3.5.5 AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.7.6 /uv /uvx /bin/
