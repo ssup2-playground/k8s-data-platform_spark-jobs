@@ -6,5 +6,6 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "minio>=7.2.15",
+    "pyiceberg>=0.9.1",
     "pyspark==3.5.5",
 ]

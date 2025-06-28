@@ -1,11 +1,22 @@
 import argparse
 from datetime import datetime
 
+from pyiceberg.table import Table
+
+from utils.minio import init_minio_client
 from utils.spark import init_spark_session_with_iceberg
 
 ## Constants
-ICEBERG_TABLE = "weather.southkorea_daily_iceberg_parquet"
-ICEBERG_AVG_TABLE = "weather.southkorea_daily_average_iceberg_parquet"
+MINIO_BUCKET = "weather"
+ICEBERG_DAILY_TABLE = "weather.southkorea_daily_iceberg_parquet"
+ICEBERG_DAILY_AVERAGE_TABLE = "weather.southkorea_daily_average_iceberg_parquet"
+
+## Functions
+def check_partition_exists_by_date(iceberg_table: Table, year: int, month: int, day: int) -> bool:
+    '''Check if a specific partition exists using inspect.partitions()'''
+    date_list = iceberg_table.inspect.partitions()["partition"].to_pylist()
+    date_set = set(tuple(date.values()) for date in date_list)
+    return (year, month, day) in date_set
 
 ## Main
 def main():
@@ -24,23 +35,16 @@ def main():
         print("Error: Date format should be YYYYMMDD")
         return
 
-    # Create spark session
-    spark = init_spark_session_with_iceberg()
-    spark.sparkContext.setLogLevel("INFO")
-
     # Check if data exists in Iceberg table for the target date
-    check_query = f"""
-    SELECT COUNT(*) as record_count
-    FROM {ICEBERG_AVG_TABLE}
-    WHERE year = {year} AND month = {month} AND day = {day}
-    """
-    
-    result = spark.sql(check_query).collect()
-    record_count = result[0]['record_count']
-    if record_count == 0:
+    iceberg_table = Table.from_uri(f"s3://{MINIO_BUCKET}/{ICEBERG_DAILY_TABLE}")
+    if not check_partition_exists_by_date(iceberg_table, year, month, day):
         print(f"No data found in Iceberg table for date {args.date}")
         return 0
-    
+
+    # Create spark session
+    spark = init_spark_session_with_iceberg()
+    spark.sparkContext.setLogLevel("DEBUG")
+
     # Calculate average
     avg_query = f"""
     SELECT
@@ -58,7 +62,7 @@ def main():
         AVG(pressure_vaper) as avg_pressure_vaper,
         AVG(dew_point) as avg_dew_point,
         COUNT(*) as total_records
-    FROM {ICEBERG_TABLE}
+    FROM {ICEBERG_DAILY_TABLE}
     WHERE year = {year} AND month = {month} AND day = {day}
     GROUP BY branch_name
     """
@@ -72,7 +76,7 @@ def main():
     result_df.write \
         .format("iceberg") \
         .mode("append") \
-        .saveAsTable(ICEBERG_AVG_TABLE)
+        .saveAsTable(ICEBERG_DAILY_AVERAGE_TABLE)
 
 if __name__ == "__main__":
     main()
