@@ -3,13 +3,14 @@ from datetime import datetime
 
 from pyiceberg.table import Table
 
-from utils.minio import init_minio_client
-from utils.spark import init_spark_session_with_iceberg
+from utils.spark import init_spark_session_with_iceberg     
+from utils.iceberg import get_iceberg_catalog
 
 ## Constants
 MINIO_BUCKET = "weather"
-ICEBERG_DAILY_TABLE = "weather.southkorea_daily_iceberg_parquet"
-ICEBERG_DAILY_AVERAGE_TABLE = "weather.southkorea_daily_average_iceberg_parquet"
+ICEBERG_DAILY_AVERAGE_PYICEBERG_TABLE = "weather.southkorea_daily_average_iceberg_parquet"
+ICEBERG_DAILY_AVERAGE_SPARK_TABLE = "iceberg.weather.southkorea_daily_average_iceberg_parquet"
+ICEBERG_DAILY_SPARK_TABLE = "iceberg.weather.southkorea_daily_iceberg_parquet"
 
 ## Functions
 def check_partition_exists_by_date(iceberg_table: Table, year: int, month: int, day: int) -> bool:
@@ -35,20 +36,24 @@ def main():
         print("Error: Date format should be YYYYMMDD")
         return
 
+    # Get daily average table
+    catalog = get_iceberg_catalog()
+    daily_average_table = catalog.load_table(ICEBERG_DAILY_AVERAGE_PYICEBERG_TABLE)
+
     # Check if data exists in Iceberg table for the target date
-    iceberg_table = Table.from_uri(f"s3://{MINIO_BUCKET}/{ICEBERG_DAILY_TABLE}")
-    if not check_partition_exists_by_date(iceberg_table, year, month, day):
-        print(f"No data found in Iceberg table for date {args.date}")
+    if check_partition_exists_by_date(daily_average_table, year, month, day):
+        print(f"Data already exists in Iceberg table for date {args.date}")
         return 0
 
     # Create spark session
     spark = init_spark_session_with_iceberg()
-    spark.sparkContext.setLogLevel("DEBUG")
+    spark.sparkContext.setLogLevel("INFO")
 
     # Calculate average
     avg_query = f"""
     SELECT
         branch_name,
+
         AVG(temp) as avg_temp,
         AVG(rain) as avg_rain,
         AVG(snow) as avg_snow,
@@ -61,10 +66,13 @@ def main():
         AVG(pressure_sea) as avg_pressure_sea,
         AVG(pressure_vaper) as avg_pressure_vaper,
         AVG(dew_point) as avg_dew_point,
-        COUNT(*) as total_records
-    FROM {ICEBERG_DAILY_TABLE}
+
+        year,
+        month,
+        day
+    FROM {ICEBERG_DAILY_SPARK_TABLE}
     WHERE year = {year} AND month = {month} AND day = {day}
-    GROUP BY branch_name
+    GROUP BY branch_name, year, month, day
     """
     
     result_df = spark.sql(avg_query)
@@ -76,7 +84,8 @@ def main():
     result_df.write \
         .format("iceberg") \
         .mode("append") \
-        .saveAsTable(ICEBERG_DAILY_AVERAGE_TABLE)
+        .partitionBy("year", "month", "day") \
+        .saveAsTable(ICEBERG_DAILY_AVERAGE_SPARK_TABLE)
 
 if __name__ == "__main__":
     main()

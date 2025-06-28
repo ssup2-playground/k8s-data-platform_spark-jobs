@@ -21,9 +21,12 @@ def init_spark_session() -> SparkSession:
 def init_spark_session_with_iceberg() -> SparkSession:
     spark = SparkSession.builder \
         .appName("WeatherSouthKoreaDailyAverageIceberg") \
+        .config("hive.metastore.uris", HIVE_CATALOG_URI) \
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT) \
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY) \
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY) \
+        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
         .config("spark.sql.catalog.uri", HIVE_CATALOG_URI) \
         .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog") \
         .config("spark.sql.catalog.iceberg.type", "hive") \
