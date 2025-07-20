@@ -1,0 +1,8 @@
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: PodGroup
+spec:
+  queue: sparkqueue
+  minMember: 1
+  minResources:
+    cpu: "4"
+    memory: "4Gi"

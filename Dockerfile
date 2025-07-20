@@ -25,3 +25,4 @@ COPY --from=builder /app/.venv /app/.venv
 
 COPY ./src/jobs jobs
 COPY ./src/utils utils
+COPY ./src/configs configs
