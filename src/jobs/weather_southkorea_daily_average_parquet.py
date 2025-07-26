@@ -9,7 +9,7 @@ MINIO_BUCKET = "weather"
 MINIO_DIRECTORY_SOUTHKOREA_DAILY_PARQUET = "southkorea/daily-parquet"
 MINIO_DIRECTORY_SOUTHKOREA_DAILY_AVERAGE_PARQUET = "southkorea/daily-average-parquet"
 
-TEMP_PYICEBERG_TABLE = "weather_southkorea_daily_parquet"
+TEMP_PARQUET_TABLE = "weather_southkorea_daily_parquet"
 
 ## Functions
 def get_daily_parquet_object_name(date: str) -> str:
@@ -67,7 +67,7 @@ def main():
     # Read data from parquet
     object_daily_parquet_name = get_daily_parquet_object_name(args.date)
     df = spark.read.parquet(f"s3a://{MINIO_BUCKET}/{object_daily_parquet_name}")
-    df.createOrReplaceTempView(TEMP_PYICEBERG_TABLE)
+    df.createOrReplaceTempView(TEMP_PARQUET_TABLE)
 
     # Calculate average
     query = f"""
@@ -85,8 +85,8 @@ def main():
         AVG(pressure_local) as avg_pressure_local,
         AVG(pressure_sea) as avg_pressure_sea,
         AVG(pressure_vaper) as avg_pressure_vaper,
-        AVG(dew_point) as avg_dew_point,
-    FROM {TEMP_PYICEBERG_TABLE}
+        AVG(dew_point) as avg_dew_point
+    FROM {TEMP_PARQUET_TABLE}
     GROUP BY branch_name
     """
     
