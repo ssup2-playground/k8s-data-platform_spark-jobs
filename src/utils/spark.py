@@ -20,7 +20,7 @@ def init_spark_session() -> SparkSession:
 
 def init_spark_session_with_iceberg() -> SparkSession:
     spark = SparkSession.builder \
-        .appName("WeatherSouthKoreaDailyAverageIceberg") \
+        .appName("WeatherSouthKoreaDailyAverageIcebergParquet") \
         .config("hive.metastore.uris", HIVE_CATALOG_URI) \
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT) \
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY) \
