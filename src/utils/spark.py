@@ -9,7 +9,6 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "root123!")
 
 def init_spark_session() -> SparkSession:
     spark = SparkSession.builder \
-        .appName("WeatherSouthKoreaDailyAverageParquet") \
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT) \
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY) \
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY) \
@@ -20,7 +19,6 @@ def init_spark_session() -> SparkSession:
 
 def init_spark_session_with_iceberg() -> SparkSession:
     spark = SparkSession.builder \
-        .appName("WeatherSouthKoreaDailyAverageIcebergParquet") \
         .config("hive.metastore.uris", HIVE_CATALOG_URI) \
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT) \
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY) \
